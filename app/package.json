@@ -1,0 +1,30 @@
+{
+  "name": "argocd-aks-sample-app",
+  "version": "1.0.0",
+  "description": "Sample Node.js application for ArgoCD + AKS GitOps demo",
+  "main": "server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "echo \"Error: no test specified\" && exit 0"
+  },
+  "keywords": [
+    "nodejs",
+    "express",
+    "kubernetes",
+    "argocd",
+    "gitops",
+    "aks"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

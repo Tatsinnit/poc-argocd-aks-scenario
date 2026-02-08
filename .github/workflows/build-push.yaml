@@ -1,0 +1,179 @@
+name: Build and Push to ACR
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'app/**'
+      - '.github/workflows/build-push.yaml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'app/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - prod
+
+env:
+  ACR_NAME: ${{ secrets.ACR_NAME }}  # e.g., acrargocdemo12345
+  IMAGE_NAME: sample-app
+  NODE_VERSION: '18'
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./app
+        run: npm ci
+
+      - name: Run tests
+        working-directory: ./app
+        run: npm test
+
+      - name: Generate version tag
+        id: version
+        run: |
+          # Use Git commit SHA for versioning
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          
+          # Determine environment
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            ENV="${{ github.event.inputs.environment }}"
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            ENV="prod"
+          else
+            ENV="dev"
+          fi
+          
+          VERSION="v1.0.0-${ENV}-${SHORT_SHA}"
+          
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "environment=${ENV}" >> $GITHUB_OUTPUT
+          echo "timestamp=${TIMESTAMP}" >> $GITHUB_OUTPUT
+          
+          echo "📦 Version: ${VERSION}"
+          echo "🌍 Environment: ${ENV}"
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      
+      # Legacy method (if using service principal instead of OIDC):
+      # - name: Azure Login
+      #   uses: azure/login@v1
+      #   with:
+      #     creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Login to Azure Container Registry
+        run: |
+          az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build Docker image
+        working-directory: ./app
+        run: |
+          docker build \
+            --build-arg NODE_VERSION=${{ env.NODE_VERSION }} \
+            --tag ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }} \
+            --tag ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:latest \
+            --tag ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.environment }}-latest \
+            .
+
+      - name: Push Docker image to ACR
+        run: |
+          docker push ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
+          docker push ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:latest
+          docker push ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.environment }}-latest
+
+      - name: Update Kubernetes manifest
+        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+        run: |
+          ENV="${{ steps.version.outputs.environment }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          ACR_LOGIN_SERVER="${{ env.ACR_NAME }}.azurecr.io"
+          
+          # Update kustomization.yaml with new image tag
+          sed -i "s|newTag: .*|newTag: ${VERSION}|g" kubernetes/overlays/${ENV}/kustomization.yaml
+          sed -i "s|newName: .*|newName: ${ACR_LOGIN_SERVER}/${IMAGE_NAME}|g" kubernetes/overlays/${ENV}/kustomization.yaml
+          
+          echo "✅ Updated kubernetes/overlays/${ENV}/kustomization.yaml"
+          cat kubernetes/overlays/${ENV}/kustomization.yaml
+
+      - name: Commit and push manifest changes
+        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add kubernetes/overlays/${{ steps.version.outputs.environment }}/kustomization.yaml
+          
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "🚀 Update ${{ steps.version.outputs.environment }} image to ${{ steps.version.outputs.version }}"
+            git push
+            echo "✅ Manifest updated and pushed to Git"
+          fi
+
+      - name: Create GitHub Release
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          release_name: Release ${{ steps.version.outputs.version }}
+          body: |
+            ## Changes
+            - Image: `${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}`
+            - Commit: ${{ github.sha }}
+            - Environment: ${{ steps.version.outputs.environment }}
+            
+            ## Deployed via ArgoCD
+            ArgoCD will automatically sync this version to the cluster.
+          draft: false
+          prerelease: false
+
+      - name: Summary
+        run: |
+          echo "## 🎉 Build and Push Complete!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** \`${{ steps.version.outputs.environment }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ steps.version.outputs.short_sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "- ArgoCD will automatically detect and sync this change" >> $GITHUB_STEP_SUMMARY
+          echo "- Monitor deployment in ArgoCD UI" >> $GITHUB_STEP_SUMMARY
+          echo "- Verify application health after deployment" >> $GITHUB_STEP_SUMMARY

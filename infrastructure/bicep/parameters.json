@@ -1,0 +1,30 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "clusterName": {
+      "value": "aks-argocd-demo"
+    },
+    "location": {
+      "value": "eastus"
+    },
+    "nodeCount": {
+      "value": 3
+    },
+    "vmSize": {
+      "value": "Standard_DS2_v2"
+    },
+    "kubernetesVersion": {
+      "value": "1.28"
+    },
+    "enableRBAC": {
+      "value": true
+    },
+    "networkPlugin": {
+      "value": "kubenet"
+    },
+    "enableManagedIdentity": {
+      "value": true
+    }
+  }
+}

@@ -1,0 +1,58 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: demo-project
+  namespace: argocd
+  labels:
+    project: demo
+spec:
+  description: Demo project for ArgoCD + AKS sample applications
+  
+  # Allow manifests from these Git repositories
+  sourceRepos:
+    - 'https://github.com/Tatsinnit/poc-argocd-aks-scenario'  # Update with your Git repo
+    - '*'  # Allow all repos (not recommended for production)
+  
+  # Allow deployments to these clusters
+  destinations:
+    - namespace: 'dev'
+      server: https://kubernetes.default.svc
+    - namespace: 'prod'
+      server: https://kubernetes.default.svc
+    - namespace: 'staging'
+      server: https://kubernetes.default.svc
+  
+  # Deny all cluster-scoped resources by default
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+  
+  # Allow all namespaced resources
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'
+  
+  # Orphaned resources monitoring
+  orphanedResources:
+    warn: true
+    ignore:
+      - group: ''
+        kind: ConfigMap
+        name: kube-root-ca.crt
+  
+  # Role bindings
+  roles:
+    - name: developer
+      description: Developer role with read-only access
+      policies:
+        - p, proj:demo-project:developer, applications, get, demo-project/*, allow
+        - p, proj:demo-project:developer, applications, sync, demo-project/*, allow
+      groups:
+        - developers
+    
+    - name: admin
+      description: Admin role with full access
+      policies:
+        - p, proj:demo-project:admin, applications, *, demo-project/*, allow
+      groups:
+        - admins

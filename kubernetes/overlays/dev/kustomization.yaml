@@ -1,0 +1,33 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: dev
+
+resources:
+  - ../../base
+  - namespace.yaml
+
+commonLabels:
+  environment: dev
+
+configMapGenerator:
+  - name: sample-app-config
+    behavior: merge
+    literals:
+      - environment=dev
+      - log_level=debug
+
+images:
+  - name: sample-app
+    newName: <your-acr>.azurecr.io/sample-app  # Replace with your ACR
+    newTag: v1.0.0
+
+replicas:
+  - name: sample-app
+    count: 2
+
+patches:
+  - path: resource-limits.yaml
+    target:
+      kind: Deployment
+      name: sample-app

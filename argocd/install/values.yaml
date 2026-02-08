@@ -1,0 +1,100 @@
+# ArgoCD Helm Chart Custom Values
+# Use this file when installing ArgoCD via Helm
+
+global:
+  domain: argocd.example.com  # Update with your domain
+
+server:
+  # Service configuration
+  service:
+    type: ClusterIP  # Change to LoadBalancer for external access
+  
+  # Ingress configuration (optional)
+  ingress:
+    enabled: false  # Set to true if using Ingress
+    annotations:
+      kubernetes.io/ingress.class: nginx
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    hosts:
+      - argocd.example.com
+    tls:
+      - secretName: argocd-tls
+        hosts:
+          - argocd.example.com
+  
+  # Additional configuration
+  config:
+    # Repository credentials templates (optional)
+    repositories: |
+      - type: git
+        url: https://github.com/Tatsinnit/poc-argocd-aks-scenario
+    
+    # Resource customizations
+    resource.customizations: |
+      admissionregistration.k8s.io/MutatingWebhookConfiguration:
+        ignoreDifferences: |
+          jsonPointers:
+          - /webhooks/0/clientConfig/caBundle
+
+# Controller configuration
+controller:
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+# Repo server configuration
+repoServer:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 200m
+      memory: 512Mi
+
+# Redis configuration
+redis:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# Dex (SSO) configuration
+dex:
+  enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+# Notification controller
+notifications:
+  enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+# ApplicationSet controller
+applicationSet:
+  enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
