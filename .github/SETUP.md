@@ -6,20 +6,34 @@ This guide explains how to set up GitHub Actions for continuous integration and 
 
 GitHub Actions needs to authenticate with Azure to push images to ACR and manage resources.
 
-### Recommended: OpenID Connect (OIDC) ⭐
+**Important:** Both methods use an Azure AD App Registration and Service Principal. The difference is HOW they authenticate:
+
+### Recommended: Workload Identity Federation (OIDC) ⭐
+
+**What it is:**
+- Creates a Service Principal with **federated credentials** (no password)
+- GitHub sends a token that Azure validates
+- Trust relationship instead of secrets
 
 **Why OIDC?**
 - 🔒 **Most Secure** - No secrets stored in GitHub
-- ⚡ **Zero Maintenance** - Automatic token rotation
+- ⚡ **Zero Maintenance** - Automatic token rotation (tokens last ~1 hour)
 - 📊 **Better Auditing** - Federated identity logs
 - ✅ **Microsoft Recommended** - Industry best practice
 
-**Required Secrets:** 3 IDs (not secrets)
-- `AZURE_CLIENT_ID`
-- `AZURE_TENANT_ID`
-- `AZURE_SUBSCRIPTION_ID`
+**Required GitHub Secrets:** 3 IDs (not actual secrets)
+- `AZURE_CLIENT_ID` - Service Principal's Application ID
+- `AZURE_TENANT_ID` - Your Azure AD Tenant ID  
+- `AZURE_SUBSCRIPTION_ID` - Your Azure Subscription ID
 
-### Alternative: Service Principal (Legacy)
+**Authentication Type:** Service Principal with Federated Credential
+
+### Alternative: Service Principal with Client Secret (Legacy)
+
+**What it is:**
+- Creates a Service Principal with a **client secret** (password)
+- Secret is stored in GitHub and sent on every authentication
+- Long-lived credential (1-2 years)
 
 **When to use:**
 - Quick testing/demos only
@@ -27,9 +41,24 @@ GitHub Actions needs to authenticate with Azure to push images to ACR and manage
 - Temporary environments
 
 **Required Secrets:** 1 JSON with credentials
-- `AZURE_CREDENTIALS` (contains client secret)
+- `AZURE_CREDENTIALS` (contains clientId + clientSecret)
+
+**Authentication Type:** Service Principal with Client Secret
 
 ⚠️ **Security Risk:** Long-lived secrets stored in GitHub
+
+---
+
+### Comparison Table
+
+| Aspect | OIDC (Federated) | Client Secret |
+|--------|------------------|---------------|
+| **Authentication** | Service Principal + Federated Credential | Service Principal + Password |
+| **Secrets in GitHub** | ❌ None (only IDs) | ✅ 1 (client secret) |
+| **Token Lifetime** | ~1 hour | 1-2 years |
+| **Credential Rotation** | ✅ Automatic | ❌ Manual |
+| **Security Level** | 🔒 Highest | ⚠️ Lower |
+| **Setup Complexity** | Medium | Simple |
 
 ---
 
@@ -55,13 +84,18 @@ az acr list --resource-group rg-argocd-demo --query '[0].name' -o tsv
 
 ### 2. Azure Authentication
 
-**⭐ RECOMMENDED: OpenID Connect (OIDC) - Most Secure**
+**⭐ RECOMMENDED: Workload Identity Federation (OIDC) - Most Secure**
 
 This method uses federated credentials with **no secrets stored in GitHub**.
 
+> **📝 Note:** OIDC still creates a Service Principal, but instead of using a password (client secret), 
+> it uses a **federated credential** - a trust relationship between GitHub and Azure. 
+> GitHub sends a short-lived token (valid ~1 hour) that Azure validates against this trust relationship.
+> No long-lived secrets are stored anywhere!
+
 #### Setup OIDC Authentication
 
-**Step 1: Create Azure AD Application**
+**Step 1: Create Azure AD Application & Service Principal**
 ```bash
 # Set variables
 APP_NAME="github-actions-argocd-demo"

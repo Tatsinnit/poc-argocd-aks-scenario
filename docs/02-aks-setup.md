@@ -49,6 +49,7 @@ az deployment group create \
 ### Option 3: Manual Azure CLI Commands
 
 ```bash
+
 # Set variables
 RG_NAME="rg-argocd-demo"
 LOCATION="eastus"

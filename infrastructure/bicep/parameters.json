@@ -15,7 +15,7 @@
       "value": "Standard_DS2_v2"
     },
     "kubernetesVersion": {
-      "value": "1.28"
+      "value": "1.33"
     },
     "enableRBAC": {
       "value": true

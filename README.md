@@ -135,6 +135,53 @@ Create new overlays in `kubernetes/overlays/<env-name>`.
 
 Edit Bicep templates in `infrastructure/bicep/`.
 
+## 🔧 Troubleshooting
+
+### Common Issues
+
+**ArgoCD CRD Installation Error**
+
+If you see: `metadata.annotations: Too long: may not be more than 262144 bytes`
+
+**Solution:** The installation script automatically handles this with `--server-side` flag. If installing manually:
+
+```bash
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml \
+  --server-side --force-conflicts
+```
+
+See [docs/03-argocd-installation.md](docs/03-argocd-installation.md#crd-annotation-size-error) for details.
+
+**Pods Not Starting**
+
+```bash
+kubectl get pods -n <namespace>
+kubectl describe pod <pod-name> -n <namespace>
+kubectl logs <pod-name> -n <namespace>
+```
+
+**ArgoCD Not Syncing**
+
+```bash
+# Check application status
+kubectl get application -n argocd
+
+# Force refresh
+argocd app get <app-name> --refresh
+```
+
+**Cannot Access Services**
+
+```bash
+# Verify services are running
+kubectl get svc -n <namespace>
+
+# Check port-forwarding
+kubectl port-forward svc/<service-name> -n <namespace> <local-port>:<service-port>
+```
+
+For detailed troubleshooting, see individual documentation pages.
+
 ## 🧹 Cleanup
 
 ```bash

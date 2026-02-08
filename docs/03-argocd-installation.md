@@ -37,12 +37,15 @@ This script:
 # Create namespace
 kubectl create namespace argocd
 
-# Install ArgoCD
-kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+# Install ArgoCD using server-side apply (avoids CRD annotation size issues)
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml \
+  --server-side --force-conflicts
 
 # Wait for pods to be ready
 kubectl wait --for=condition=ready pod --all -n argocd --timeout=300s
 ```
+
+> **💡 Note:** The `--server-side` flag prevents "metadata.annotations: Too long" errors with ArgoCD CRDs.
 
 ### Option 3: Helm Installation (Custom Values)
 
@@ -394,6 +397,39 @@ spec:
     jsonPointers:
     - /spec/replicas
 ```
+
+### CRD Annotation Size Error
+
+**Error:** `The CustomResourceDefinition "applicationsets.argoproj.io" is invalid: metadata.annotations: Too long: may not be more than 262144 bytes`
+
+**Cause:** ArgoCD CRDs have large annotations that exceed Kubernetes' 256KB limit when using client-side apply.
+
+**Solution 1: Use Server-Side Apply (Recommended)**
+```bash
+# Re-apply with server-side flag
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml \
+  --server-side --force-conflicts
+```
+
+**Solution 2: Use kubectl replace**
+```bash
+# Download manifest
+curl -o argocd-install.yaml https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+# Apply with replace
+kubectl replace -n argocd -f argocd-install.yaml --force
+
+# Or for first-time install
+kubectl create -n argocd -f argocd-install.yaml
+```
+
+**Solution 3: Use Helm (Avoids the issue entirely)**
+```bash
+helm repo add argo https://argoproj.github.io/argo-helm
+helm install argocd argo/argo-cd -n argocd --create-namespace
+```
+
+**Prevention:** Always use `--server-side` flag when applying ArgoCD manifests.
 
 ## 📚 Next Steps
 

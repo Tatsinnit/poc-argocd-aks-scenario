@@ -27,7 +27,7 @@ on:
 env:
   ACR_NAME: ${{ secrets.ACR_NAME }}  # e.g., acrargocdemo12345
   IMAGE_NAME: sample-app
-  NODE_VERSION: '18'
+  NODE_VERSION: '20'
 
 jobs:
   build-and-push:
@@ -90,7 +90,11 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       
-      # Legacy method (if using service principal instead of OIDC):
+      # NOTE: OIDC still uses a Service Principal, but with federated credentials
+      # instead of a client secret. No secrets are stored in GitHub.
+      # GitHub sends a short-lived token that Azure validates.
+      
+      # Legacy method (Service Principal with Client Secret):
       # - name: Azure Login
       #   uses: azure/login@v1
       #   with:
