@@ -21,7 +21,7 @@ AKS_NAME="${AKS_NAME:-aks-argocd-demo}"
 ACR_NAME="${ACR_NAME:-acrargocdemo$RANDOM}"
 NODE_COUNT="${NODE_COUNT:-3}"
 NODE_VM_SIZE="${NODE_VM_SIZE:-Standard_DS2_v2}"
-K8S_VERSION="${K8S_VERSION:-1.28}"
+K8S_VERSION="${K8S_VERSION:-1.33}"
 
 # Helper functions
 log() {

@@ -72,7 +72,10 @@ install_argocd() {
     local MANIFEST_URL="https://raw.githubusercontent.com/argoproj/argo-cd/$ARGOCD_VERSION/manifests/install.yaml"
     
     log "Downloading and applying ArgoCD manifest from $MANIFEST_URL"
-    kubectl apply -n "$ARGOCD_NAMESPACE" -f "$MANIFEST_URL"
+    log "Using server-side apply to avoid CRD annotation size issues..."
+    
+    # Use server-side apply to avoid "metadata.annotations: Too long" error
+    kubectl apply -n "$ARGOCD_NAMESPACE" -f "$MANIFEST_URL" --server-side --force-conflicts
     
     log "ArgoCD components installed ✓"
 }
